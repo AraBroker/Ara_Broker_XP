@@ -1,5 +1,4 @@
 if( UnitLevel"player" == GetMaxLevelForExpansionLevel(GetExpansionLevel()) )then return end
---print("You may at most reach level", GetMaxLevelForExpansionLevel(GetExpansionLevel()))
 
 local addonName = ...
 local f = CreateFrame("Frame", "AraXP")
