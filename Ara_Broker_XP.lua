@@ -49,7 +49,7 @@ function f:InitConfigMenu()
     configMenu.displayMode = "MENU"
     info = {}
     options = {
-    { text = ("|cffffb366Ara|r XP (%s)"):format( GetAddOnMetadata(addonName, "Version") ), isTitle = true },
+    { text = ("|cffffb366Ara|r XP (%s)"):format( C_AddOns.GetAddOnMetadata(addonName, "Version") ), isTitle = true },
     { text = "Pattern...", func = function() StaticPopup_Show"SET_ABXP_PATTERN" end },
     { text = "Length...", func = function() StaticPopup_Show"SET_ABXP_LENGTH" end },
     { text = "Colors", submenu = {
