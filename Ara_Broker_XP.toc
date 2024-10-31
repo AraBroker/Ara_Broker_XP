@@ -1,7 +1,7 @@
-## Interface: 100207, 110000, 110002
+## Interface: 110002, 110005
 
 ## Title: Ara - Broker - XP
-## Version: r31
+## Version: r32
 ## SavedVariables: AraBrokerXPDB
 ## Notes: A data broker plugin that display an ASCII representation of your experience bar.
 
