@@ -62,25 +62,44 @@ function f:InitConfigMenu()
         { text = "None",    radio = "sep", val = "" },}},
     }
     HTML2RGB = function(html)
-        info.r = tonumber( html:sub(1,2), 16 ) / 255
-        info.g = tonumber( html:sub(3,4), 16 ) / 255
-        info.b = tonumber( html:sub(5,6), 16 ) / 255
+        local r = tonumber( html:sub(1,2), 16 ) / 255
+        local g = tonumber( html:sub(3,4), 16 ) / 255
+        local b = tonumber( html:sub(5,6), 16 ) / 255
+        return r, g, b
     end
+    local function RGB2HTML(r, g, b)
+        return ("%.2x%.2x%.2x"):format( floor(r*255 + .5), floor(g*255 + .5), floor(b*255 + .5) )
+    end
+    local prevColor
     ColorPickerChange = function()
-        local r, g, b = ColorPickerFrame:GetColorRGB()
-        config[curCol] = ("%.2x%.2x%.2x"):format(r*255, g*255, b*255)
+        if not curCol then return end
+        config[curCol] = RGB2HTML( ColorPickerFrame:GetColorRGB() )
         UpdateText()
     end
-    ColorPickerCancel = function(prev) config[curCol]=prev UpdateText() end
+    -- New API passes no argument to cancelFunc, so restore from our own saved value.
+    ColorPickerCancel = function()
+        if curCol and prevColor then config[curCol] = prevColor end
+        UpdateText()
+    end
     OpenColorPicker = function(self, col)
-        curCol = col
-        local cc = config[col]
-        HTML2RGB(cc)
-        ColorPickerFrame.func = ColorPickerChange
-        ColorPickerFrame.cancelFunc = ColorPickerCancel
-        ColorPickerFrame.previousValues = cc
-        ColorPickerFrame:SetColorRGB( info.r, info.g, info.b )
-        ColorPickerFrame:Show()
+        curCol, prevColor = col, config[col]
+        local r, g, b = HTML2RGB(prevColor)
+        if ColorPickerFrame.SetupColorPickerAndShow then
+            -- Retail 10.2.5+ / current Classic clients
+            ColorPickerFrame:SetupColorPickerAndShow({
+                r = r, g = g, b = b,
+                hasOpacity = false,
+                swatchFunc = ColorPickerChange,
+                cancelFunc = ColorPickerCancel,
+            })
+        else
+            -- Legacy clients
+            ColorPickerFrame.func = ColorPickerChange
+            ColorPickerFrame.cancelFunc = ColorPickerCancel
+            ColorPickerFrame.previousValues = prevColor
+            ColorPickerFrame:SetColorRGB( r, g, b )
+            ColorPickerFrame:Show()
+        end
     end
 
     SetOption = function(bt, var, val, checked)
@@ -95,12 +114,11 @@ function f:InitConfigMenu()
     end
 
     f.SetLength = function(dialog)
-        local length = tonumber( dialog.editBox:GetText():match"(%d+)" )
+        local length = tonumber( (dialog.editBox or dialog.EditBox):GetText():match"(%d+)" )
         if not length or length<4 or length>200 then
-            baseScript = BasicScriptErrors:GetScript"OnHide"
-            BasicScriptErrors:SetScript("OnHide",Error_OnHide)
-            BasicScriptErrorsText:SetText"Invalid length.\nShould be between 4 and 200"
-            return BasicScriptErrors:Show()
+            local msg = "Ara XP: Invalid length. Should be between 4 and 200."
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff2020"..msg.."|r")
+            return true -- keep the dialog open so the value can be corrected
         end
         config.length = length
         bar = config.pattern:rep(length)
@@ -108,7 +126,7 @@ function f:InitConfigMenu()
     end
 
     f.SetPattern = function(dialog)
-        local pattern = dialog.editBox:GetText()
+        local pattern = (dialog.editBox or dialog.EditBox):GetText()
         config.pattern = pattern
         lenChar, bar = #pattern, pattern:rep(config.length)
         UpdateText()
@@ -118,14 +136,14 @@ function f:InitConfigMenu()
         text = "Set XP bar length.\n(Number of pattern repetitions).",
         maxLetters = 3,
         OnAccept = f.SetLength,
-        OnShow = function(self) CloseDropDownMenus() self.editBox:SetText(config.length) self.editBox:SetFocus() end,
-        EditBoxOnEnterPressed = function(self) local p=self:GetParent() StaticPopupDialogs.SET_ABXP_LENGTH.OnAccept(p) p:Hide() end,
+        OnShow = function(self) CloseDropDownMenus() local eb = self.editBox or self.EditBox eb:SetText(config.length) eb:SetFocus() end,
+        EditBoxOnEnterPressed = function(self) local p=self:GetParent() if not StaticPopupDialogs.SET_ABXP_LENGTH.OnAccept(p) then p:Hide() end end,
     }
     local dialogPattern = {
         text = "Set XP bar pattern to repeat.",
         maxLetters = 5,
         OnAccept = AraXP.SetPattern,
-        OnShow = function(self) CloseDropDownMenus() self.editBox:SetText(config.pattern) self.editBox:SetFocus() end,
+        OnShow = function(self) CloseDropDownMenus() local eb = self.editBox or self.EditBox eb:SetText(config.pattern) eb:SetFocus() end,
         EditBoxOnEnterPressed = function(self) local p=self:GetParent() StaticPopupDialogs.SET_ABXP_PATTERN.OnAccept(p) p:Hide() end,
     }
 
@@ -149,9 +167,15 @@ function f:InitConfigMenu()
                 info.func, info.arg1, info.arg2 = SetOption, v.radio, v.val
                 info.keepShownOnClick = true
             elseif v.color then
+                local col = v.color
                 info.hasColorSwatch, info.notCheckable, info.padding = true, true, 10
-                HTML2RGB(config[v.color])
-                info.func, info.arg1 = OpenColorPicker, v.color
+                info.r, info.g, info.b = HTML2RGB(config[col])
+                info.func, info.arg1 = OpenColorPicker, col
+                -- Clicking the swatch itself opens the picker through the dropdown,
+                -- which requires swatchFunc/cancelFunc on the button.
+                local saved = config[col]
+                info.swatchFunc = function() curCol = col ColorPickerChange() end
+                info.cancelFunc = function() config[col] = saved UpdateText() end
             end
             if level == 1 or v.color then info.notCheckable = true end
             UIDropDownMenu_AddButton(info, level)
